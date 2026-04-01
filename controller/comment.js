@@ -12,6 +12,7 @@ const postComment = async (req, res) => {
       data: {
         content,
         postId,
+        userId: req.user.userId,
         parentId: parentId || null,
       },
     });
@@ -40,22 +41,18 @@ const getComments = async (req, res) => {
     const commentMap = new Map();
     const rootComments = [];
 
-    comments.forEach((comment) => {
+    // Single pass: build map and tree simultaneously
+    for (const comment of comments) {
       commentMap.set(comment.id, { ...comment, replies: [] });
-    });
-
-    comments.forEach((comment) => {
-      const commentWithReplies = commentMap.get(comment.id);
-
+    }
+    for (const comment of comments) {
+      const node = commentMap.get(comment.id);
       if (comment.parentId) {
-        const parent = commentMap.get(comment.parentId);
-        if (parent) {
-          parent.replies.push(commentWithReplies);
-        }
+        commentMap.get(comment.parentId)?.replies.push(node);
       } else {
-        rootComments.push(commentWithReplies);
+        rootComments.push(node);
       }
-    });
+    }
 
     res.status(200).json({
       message: "Comments retrieved successfully",
@@ -76,15 +73,18 @@ const deleteComment = async (req, res) => {
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
+      select: { userId: true },
     });
 
     if (!comment) {
-      return res.status(404).json({ error: "Comment not found" });
+      return res.status(404).json({ error: 'Comment not found.' });
     }
 
-    await prisma.comment.delete({
-      where: { id: commentId },
-    });
+    if (comment.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'You are not authorized to delete this comment.' });
+    }
+
+    await prisma.comment.delete({ where: { id: commentId } });
 
     res.status(200).json({
       message: "Comment and its replies deleted successfully",
