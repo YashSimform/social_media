@@ -1,0 +1,34 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Post {
+  id        String    @id @default(uuid()) @db.Uuid
+  text      String
+  content   String
+  comments  Comment[]
+  createdAt DateTime  @default(now())
+}
+
+model Comment {
+  id      String @id @default(uuid()) @db.Uuid
+  content String
+  postId  String @db.Uuid
+  post    Post   @relation(fields: [postId], references: [id])
+
+  // Self relation for nested comments
+  parentId String?   @db.Uuid
+  parent   Comment?  @relation("CommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentToComment")
+
+  createdAt DateTime @default(now())
+}
